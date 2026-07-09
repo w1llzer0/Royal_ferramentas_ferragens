@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 from datetime import datetime
+import io
 
 # 1. Configuração da página (Tela cheia)
 st.set_page_config(layout="wide", page_title="WMS & Dashboard de Ferragens")
@@ -153,7 +154,7 @@ with aba_faturamento:
                     st.success("🔥 Esse cliente já consome todos os produtos!")
 
 # ==============================================================================
-# TAB 3: TELA DE LANÇAMENTOS, EXCLUSÕES E EXCEL (O UPGRADE!)
+# TAB 3: TELA DE LANÇAMENTOS, EXCLUSÕES E EXCEL (AGORA EXCEL DE VERDADE!)
 # ==============================================================================
 with aba_cadastro:
     col_cadastro_form, col_exclusao_form = st.columns([2, 1])
@@ -232,51 +233,59 @@ with aba_cadastro:
                     st.rerun()
 
     # ==============================================================================
-    # --- NOVO BLOCO: IMPORTAÇÃO EM MASSA VIA PLANILHA (EXCEL / CSV) ---
+    # --- UPGRADE: IMPORTAÇÃO EM MASSA VIA EXCEL VERDADEIRO (.XLSX) ---
     # ==============================================================================
     st.markdown("---")
-    st.subheader("🚀 Importação em Massa via Planilha (Excel ou CSV)")
+    st.subheader("🚀 Importação em Massa via Planilha do Excel (.xlsx)")
     
     col_xlsx1, col_xlsx2 = st.columns([1, 2])
     
     with col_xlsx1:
-        st.markdown("**Passo 1: Baixe o modelo padrão**")
-        # Criamos o modelo ideal para o cliente não errar as colunas
+        st.markdown("**Passo 1: Baixe o modelo oficial do Excel**")
+        
+        # Estrutura padrão que o Excel precisa ter
         modelo_estrutura = pd.DataFrame(columns=['Data', 'Tipo', 'Cliente', 'Produto', 'Quantidade', 'Valor_Total'])
-        # Exemplo preenchido fictício na primeira linha para ele entender
         modelo_estrutura.loc[0] = ['2026-07-08', 'Entrada', 'Fornecedor Central', 'Parafuso Philips', 100, 150.00]
         
-        csv_modelo = modelo_estrutura.to_csv(index=False).encode('utf-8')
+        # Truque para gerar um arquivo .xlsx real na memória e permitir o download
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            modelo_estrutura.to_excel(writer, index=False, sheet_name='Estoque')
+        
         st.download_button(
-            label="📥 Baixar Planilha Modelo (Excel/CSV)",
-            data=csv_modelo,
-            file_name="modelo_carga_estoque.csv",
-            mime="text/csv",
-            help="Abra essa planilha no Excel, preencha as linhas com seus produtos e salve!"
+            label="📥 Baixar Planilha Padrão do Excel (.xlsx)",
+            data=buffer.getvalue(),
+            file_name="modelo_carga_estoque.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Clique para baixar a planilha do Excel prontinha para preencher!"
         )
 
     with col_xlsx2:
-        st.markdown("**Passo 2: Arrasta a planilha preenchida aqui**")
-        arquivo_enviado = st.file_uploader("Escolha o arquivo CSV preenchido", type=["csv"])
+        st.markdown("**Passo 2: Arrasta o arquivo do Excel preenchido aqui**")
+        # Mudamos o tipo aceito para xlsx
+        arquivo_enviado = st.file_uploader("Escolha a sua planilha do Excel (.xlsx)", type=["xlsx"])
         
         if arquivo_enviado is not None:
             try:
-                # Lê a planilha que o cliente enviou
-                df_importado = pd.read_csv(arquivo_enviado)
+                # Agora o Pandas lê um arquivo Excel real (.xlsx)
+                df_importado = pd.read_excel(arquivo_enviado, engine='openpyxl')
                 
-                # Validação rápida de segurança para ver se ele não alterou as colunas obrigatórias
+                # Garante que a data importada do Excel fique salva no formato texto correto do banco do CSV
+                if 'Data' in df_importado.columns:
+                    df_importado['Data'] = pd.to_datetime(df_importado['Data']).dt.strftime('%Y-%m-%d')
+                
                 colunas_obrigatorias = ['Data', 'Tipo', 'Cliente', 'Produto', 'Quantidade', 'Valor_Total']
                 if all(col in df_importado.columns for col in colunas_obrigatorias):
                     
-                    if st.button("🔥 Confirmar Carga de Todos os Produtos"):
-                        # Junta os dados importados com a base permanente do sistema
+                    if st.button("🔥 Confirmar Carga dos Dados do Excel"):
+                        # Grava de forma permanente no banco de dados local
                         df_importado.to_csv(ARQUIVO_DADOS, mode='a', header=False, index=False)
-                        st.success(f"🎉 Sucesso! {len(df_importado)} novos registros foram importados em bloco de uma só vez!")
+                        st.success(f"🎉 Sucesso total! {len(df_importado)} produtos importados direto do Excel!")
                         st.rerun()
                 else:
-                    st.error("❌ Erro! A planilha enviada não possui as colunas corretas. Use o modelo padrão.")
+                    st.error("❌ Erro! As colunas da planilha precisam seguir exatamente o modelo padrão.")
             except Exception as e:
-                st.error(f"❌ Erro ao ler o arquivo: {e}")
+                st.error(f"❌ Erro ao processar o arquivo do Excel: {e}")
 
     st.markdown("---")
     st.subheader("📋 Tabela Geral de Dados (`dados_vendas_v3.csv`)")
