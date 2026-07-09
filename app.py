@@ -18,24 +18,21 @@ def carregar_dados_google():
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
         
-        # Abre a planilha pelo ID único
         planilha = client.open_by_key("1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
-        
         todas_linhas = planilha.get_all_values()
         
         if len(todas_linhas) <= 1:
             return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
             
-        # Cria o DataFrame usando a primeira linha como cabeçalho
         df_sheets = pd.DataFrame(todas_linhas[1:], columns=todas_linhas[0])
         
-        # Remove linhas onde o nome do produto está totalmente vazio (limpa linhas fantasmas)
+        # Limpa espaços e remove linhas fantasmas
         df_sheets = df_sheets[df_sheets["Produto"].str.strip() != ""]
         
         if df_sheets.empty:
             return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
 
-        # FORÇA A CONVERSÃO RESTRITA PARA NÚMEROS
+        # Garante números válidos
         df_sheets["Quantidade"] = pd.to_numeric(df_sheets["Quantidade"], errors='coerce').fillna(0).astype(int)
         df_sheets["Preço"] = pd.to_numeric(df_sheets["Preço"], errors='coerce').fillna(0.0)
         
@@ -61,7 +58,7 @@ def salvar_dados_google(novo_registro):
         st.error(f"Erro ao salvar na planilha: {e}")
         return False
 
-# Executa a carga dos dados
+# Inicializa o dataframe carregando os dados da nuvem
 df = carregar_dados_google()
 
 # --- CRIAÇÃO DAS ABAS NA TELA ---
@@ -93,9 +90,9 @@ with aba1:
 with aba2:
     st.header("Análise de Estoque Real")
     
-    # Valida se o DataFrame realmente tem dados válidos para exibir
-    if df.empty or df["Produto"].isna().all():
-        st.info("Nenhum dado válido encontrado no Google Sheets. Faça um lançamento válido para gerar os gráficos!")
+    # SE A TABELA ESTIVER TOTALMENTE VAZIA: Não tenta fazer métricas nem gráficos
+    if df.empty or len(df) == 0:
+        st.info("💡 O banco de dados no Google Sheets está conectado com sucesso, mas não possui registros ainda. Vá na aba '📋 Realizar Lançamento' e cadastre o primeiro item para ver os gráficos aqui!")
     else:
         # Métricas rápidas
         m1, m2 = st.columns(2)
@@ -111,9 +108,10 @@ with aba2:
         st.markdown("---")
         st.markdown("### Gráfico de Movimentações por Produto")
         
-        # Filtra apenas linhas que têm quantidade maior que zero para o gráfico não quebrar
+        # Filtra registros numéricos para o gráfico
         df_grafico = df[df["Quantidade"] > 0]
         
+        # SÓ DESENHA SE TIVER LINHAS NO GRÁFICO (Evita o erro 118 do Plotly de vez!)
         if not df_grafico.empty:
             fig = px.bar(
                 df_grafico, 
@@ -126,4 +124,4 @@ with aba2:
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning("Dados numéricos insuficientes na planilha para renderizar o gráfico.")
+            st.warning("Sem dados suficientes cadastrados para renderizar o gráfico de barras.")
