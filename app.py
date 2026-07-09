@@ -1,65 +1,46 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import gspread
-from google.oauth2.service_account import Credentials
+import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="WMS - Royal Ferramentas e Ferragens", layout="wide")
 
-st.title("📦 Sistema WMS - Royal Ferramentas e Ferragens")
+st.title("📦 Sistema WMS - Royal Ferramentas e Ferragens (Modo Local)")
 st.markdown("---")
 
-# --- CONEXÃO COM O GOOGLE SHEETS ---
-@st.cache_data(ttl=5)
-def carregar_dados_google():
-    try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-        client = gspread.authorize(creds)
-        
-        planilha = client.open_by_key("1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
-        todas_linhas = planilha.get_all_values()
-        
-        if len(todas_linhas) <= 1:
-            return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
-            
-        df_sheets = pd.DataFrame(todas_linhas[1:], columns=todas_linhas[0])
-        
-        # Limpa espaços e remove linhas fantasmas
-        df_sheets = df_sheets[df_sheets["Produto"].str.strip() != ""]
-        
-        if df_sheets.empty:
-            return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
+# --- BANCO DE DADOS LOCAL (ARQUIVO CSV) ---
+ARQUIVO_BANCO = "banco_dados_wms.csv"
 
-        # Garante números válidos
-        df_sheets["Quantidade"] = pd.to_numeric(df_sheets["Quantidade"], errors='coerce').fillna(0).astype(int)
-        df_sheets["Preço"] = pd.to_numeric(df_sheets["Preço"], errors='coerce').fillna(0.0)
-        
-        return df_sheets
-    except Exception as e:
-        st.error(f"Erro ao conectar ao Google Sheets: {e}")
+def carregar_dados_local():
+    # Se o arquivo não existir, cria um do zero com as colunas certas
+    if not os.path.exists(ARQUIVO_BANCO):
+        df_vazio = pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
+        df_vazio.to_csv(ARQUIVO_BANCO, index=False)
+        return df_vazio
+    
+    # Se existir, lê o arquivo garantindo os tipos de dados certos
+    try:
+        df_local = pd.read_csv(ARQUIVO_BANCO)
+        df_local["Quantidade"] = pd.to_numeric(df_local["Quantidade"]).fillna(0).astype(int)
+        df_local["Preço"] = pd.to_numeric(df_local["Preço"]).fillna(0.0)
+        return df_local
+    except:
         return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
 
-def salvar_dados_google(novo_registro):
+def salvar_dados_local(novo_registro):
     try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-        client = gspread.authorize(creds)
-        
-        planilha = client.open_by_key("1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
-        
-        if len(planilha.get_all_values()) == 0:
-            planilha.append_row(["Produto", "Quantidade", "Preço", "Tipo"])
-            
-        planilha.append_row(novo_registro)
+        df_atual = carregar_dados_local()
+        df_novo = pd.DataFrame([novo_registro], columns=["Produto", "Quantidade", "Preço", "Tipo"])
+        # Junta o novo registro com os antigos e salva no arquivo
+        df_final = pd.concat([df_atual, df_novo], ignore_index=True)
+        df_final.to_csv(ARQUIVO_BANCO, index=False)
         return True
-    except Exception as e:
-        st.error(f"Erro ao salvar na planilha: {e}")
+    except:
         return False
 
-# Inicializa o dataframe carregando os dados da nuvem
-df = carregar_dados_google()
+# Inicializa o dataframe com os dados salvos no seu PC
+df = carregar_dados_local()
 
 # --- CRIAÇÃO DAS ABAS NA TELA ---
 aba1, aba2 = st.tabs(["📋 Realizar Lançamento", "📊 Dashboard & Estoque"])
@@ -79,22 +60,20 @@ with aba1:
             if produto.strip() == "":
                 st.warning("Por favor, digite o nome do produto.")
             else:
-                dados_linha = [produto, str(quantidade), str(preco), tipo]
-                sucesso = salvar_dados_google(dados_linha)
+                dados_linha = [produto, quantidade, preco, tipo]
+                sucesso = salvar_dados_local(dados_linha)
                 
                 if sucesso:
-                    st.success(f"Sucesso! {produto} gravado direto no Google Sheets!")
-                    st.cache_data.clear()
+                    st.success(f"Sucesso! {produto} gravado no banco de dados local!")
                     st.rerun()
 
 with aba2:
     st.header("Análise de Estoque Real")
     
-    # SE A TABELA ESTIVER TOTALMENTE VAZIA: Não tenta fazer métricas nem gráficos
-    if df.empty or len(df) == 0:
-        st.info("💡 O banco de dados no Google Sheets está conectado com sucesso, mas não possui registros ainda. Vá na aba '📋 Realizar Lançamento' e cadastre o primeiro item para ver os gráficos aqui!")
+    if df.empty:
+        st.info("💡 Nenhum dado cadastrado ainda. Vá na aba '📋 Realizar Lançamento' e faça o primeiro registro para ativar o dashboard!")
     else:
-        # Métricas rápidas
+        # Métricas rápidas no topo
         m1, m2 = st.columns(2)
         m1.metric("Total de Itens Movimentados", int(df["Quantidade"].sum()))
         
@@ -102,26 +81,20 @@ with aba2:
         m2.metric("Valor Total em Movimentações", f"R$ {valor_total:,.2f}")
         
         st.markdown("---")
-        st.markdown("### Tabela de Dados Geral (Google Sheets)")
+        st.markdown("### Tabela de Dados Geral")
         st.dataframe(df, use_container_width=True)
         
         st.markdown("---")
         st.markdown("### Gráfico de Movimentações por Produto")
         
-        # Filtra registros numéricos para o gráfico
-        df_grafico = df[df["Quantidade"] > 0]
-        
-        # SÓ DESENHA SE TIVER LINHAS NO GRÁFICO (Evita o erro 118 do Plotly de vez!)
-        if not df_grafico.empty:
-            fig = px.bar(
-                df_grafico, 
-                x="Produto", 
-                y="Quantidade", 
-                color="Tipo", 
-                title="Quantidade Movimentada por Item",
-                barmode="group",
-                color_discrete_map={"Entrada": "#2ec4b6", "Saída": "#e71d36"}
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Sem dados suficientes cadastrados para renderizar o gráfico de barras.")
+        # O gráfico agora roda 100% liso porque os dados locais são controlados direto pelo pandas
+        fig = px.bar(
+            df, 
+            x="Produto", 
+            y="Quantidade", 
+            color="Tipo", 
+            title="Quantidade Movimentada por Item",
+            barmode="group",
+            color_discrete_map={"Entrada": "#2ec4b6", "Saída": "#e71d36"}
+        )
+        st.plotly_chart(fig, use_container_width=True)
