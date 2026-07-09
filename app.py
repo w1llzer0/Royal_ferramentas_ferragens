@@ -10,28 +10,27 @@ st.set_page_config(page_title="WMS - Royal Ferramentas e Ferragens", layout="wid
 st.title("📦 Sistema WMS - Royal Ferramentas e Ferragens")
 st.markdown("---")
 
-# --- CONEXÃO COM O GOOGLE SHEETS ---
-@st.cache_data(ttl=10)  # Atualiza os dados a cada 10 segundos se houver recarregamento
+# --- CONEXÃO COM O GOOGLE SHEETS (VERSÃO CORRIGIDA) ---
+@st.cache_data(ttl=5)  # Atualiza rápido
 def carregar_dados_google():
     try:
-        # Define os escopos de acesso
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        
-        # Puxa as credenciais de forma segura dos Secrets do Streamlit Cloud
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
         
-        # Abre a planilha pelo nome exato
-        planilha = client.open("Banco_Dados_Royal").sheet1
+        # ABRA USANDO O ID DA SUA PLANILHA AQUI:
+        planilha = client.open_by_key("C1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
         
-        # Pega todas os registros da planilha
-        registros = planilha.get_all_records()
+        # Lê todas as linhas como listas de texto simples (evita o erro 200)
+        todas_linhas = planilha.get_all_values()
         
-        if not registros:
-            # Se a planilha estiver totalmente vazia, cria um DataFrame com as colunas padrão
+        if len(todas_linhas) <= 1:
+            # Se só tiver o cabeçalho ou estiver vazia, mostra a tabela limpa
             return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
             
-        return pd.DataFrame(registros)
+        # Transforma as linhas em um DataFrame usando a primeira linha como título
+        df_sheets = pd.DataFrame(todas_linhas[1:], columns=todas_linhas[0])
+        return df_sheets
     except Exception as e:
         st.error(f"Erro ao conectar ao Google Sheets: {e}")
         return pd.DataFrame(columns=["Produto", "Quantidade", "Preço", "Tipo"])
@@ -41,9 +40,10 @@ def salvar_dados_google(novo_registro):
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
         client = gspread.authorize(creds)
-        planilha = client.open("Banco_Dados_WMS").sheet1
         
-        # Se a planilha estiver vazia (sem cabeçalhos), adiciona os cabeçalhos primeiro
+        # ABRA USANDO O ID DA SUA PLANILHA AQUI TAMBÉM:
+        planilha = client.open_by_key("COLE_AQUI_O_ID_DA_SUA_PLANILHA").sheet1
+        
         if len(planilha.get_all_values()) == 0:
             planilha.append_row(["Produto", "Quantidade", "Preço", "Tipo"])
             
