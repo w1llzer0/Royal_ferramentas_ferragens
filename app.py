@@ -19,7 +19,7 @@ def carregar_dados_google():
         client = gspread.authorize(creds)
         
         # ABRA USANDO O ID DA SUA PLANILHA AQUI:
-        planilha = client.open_by_key("C1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
+       planilha = client.open_by_key("1bDvziHPQ5KDYm_1SGJ8hK5CVHMEfELHlyNlDndv2gfs").sheet1
         
         # Lê todas as linhas como listas de texto simples (evita o erro 200)
         todas_linhas = planilha.get_all_values()
