@@ -22,7 +22,7 @@ def carregar_dados_google():
         client = gspread.authorize(creds)
         
         # Abre a planilha pelo nome exato
-        planilha = client.open("Banco_Dados_WMS").sheet1
+        planilha = client.open("Banco_Dados_Royal").sheet1
         
         # Pega todas os registros da planilha
         registros = planilha.get_all_records()
