@@ -1,0 +1,9 @@
+Data,Tipo,Cliente,Produto,Quantidade,Valor_Total
+2026-01-10,Entrada,Manoel Ferragens,Parafuso Sextavado,500,2500.0
+2026-01-15,Entrada,Construtora Silva,Arruela Lisa,300,300.0
+2026-02-05,Entrada,Manoel Ferragens,Parafuso Sextavado,200,1000.0
+2026-02-20,Saída,Carlos Serralharia,Chave de Fenda,50,500.0
+2026-03-12,Entrada,Construtora Silva,Parafuso Sextavado,400,2000.0
+2026-04-02,Saída,Manoel Ferragens,Chave de Fenda,30,300.0
+2026-05-05,Entrada,Aço Norte,Broca de Aço,150,1500.0
+2026-06-15,Saída,Carlos Serralharia,Chave de Fenda,20,200.0

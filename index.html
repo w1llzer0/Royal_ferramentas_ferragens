@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>WMS PRO | Controle de Fluxo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; padding: 20px; font-family: 'Inter', sans-serif; }
+        .card { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .form-control, .form-select { background-color: #0f172a !important; color: white !important; border: 1px solid #334155 !important; }
+        .btn-primary { background-color: #38bdf8; border: none; color: #0f172a; font-weight: bold; }
+        .badge-pos { background: #38bdf8; color: #0f172a; font-weight: bold; padding: 5px 10px; border-radius: 6px; }
+        .highlight { color: #38bdf8; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fa-solid fa-barcode highlight"></i> Gestão de Estoque TRV</h2>
+            <p class="text-secondary">Rua A-Q | Nível 1-5 | Reforma Túnel Estático</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <input type="text" id="inputBusca" class="form-control form-control-lg" placeholder="DIGITE O CÓDIGO OU ITEM PARA FILTRAR...">
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row g-4">
+        <div class="col-lg-3">
+            <div class="card p-4">
+                <h5 class="text-info mb-4">Registrar Entrada</h5>
+                <form action="/adicionar" method="POST">
+                    <div class="mb-3">
+                        <label class="small text-secondary">CÓDIGO DO PRODUTO</label>
+                        <input type="text" name="codigo" class="form-control" placeholder="Ex: SKU-99" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="small text-secondary">RUA</label>
+                            <select name="rua" class="form-select">
+                                {% for letra in "ABCDEFGHIJKLMNOPQ" %}
+                                <option value="{{ letra }}">Rua {{ letra }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="small text-secondary">NÍVEL</label>
+                            <select name="nivel" class="form-select">
+                                <option value="1">1 (Chão)</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-secondary">DESCRIÇÃO ITEM</label>
+                        <input type="text" name="produto" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-secondary">LADO (MIX REFORMA)</label>
+                        <select name="lado" class="form-select">
+                            <option value="Dianteiro">Dianteiro + Dianteiro</option>
+                            <option value="Traseiro">Traseiro + Traseiro</option>
+                            <option value="N/A">Sem Mistura</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="small text-secondary">QUANTIDADE</label>
+                        <input type="number" name="qtd" class="form-control" value="1480">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">ALOCAR NO MAPA</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="card p-0 overflow-hidden">
+                <table class="table table-hover table-dark m-0" id="tabelaEstoque">
+                    <thead class="bg-dark">
+                        <tr class="text-secondary border-bottom border-secondary">
+                            <th class="p-3 text-center">POSIÇÃO</th>
+                            <th class="p-3">CÓDIGO</th>
+                            <th class="p-3">PRODUTO</th>
+                            <th class="p-3">LADO/MIX</th>
+                            <th class="p-3">QTD</th>
+                            <th class="p-3 text-center">AÇÕES</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in itens %}
+                        <tr class="align-middle border-bottom border-secondary">
+                            <td class="text-center"><span class="badge-pos">{{ item.rua }}-{{ item.nivel }}</span></td>
+                            <td><code class="text-info">{{ item.codigo }}</code></td>
+                            <td><span class="fw-bold">{{ item.produto }}</span></td>
+                            <td>
+                                {% if item.lado == 'Dianteiro' %}<span class="text-warning small">DIANT + DIANT</span>
+                                {% elif item.lado == 'Traseiro' %}<span class="text-primary small">TRAS + TRAS</span>
+                                {% else %} — {% endif %}
+                            </td>
+                            <td>{{ item.qtd }}</td>
+                            <td class="text-center">
+                                <a href="/deletar/{{ item.id }}" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Filtro Inteligente: Busca por código, rua ou nome
+    document.getElementById('inputBusca').addEventListener('keyup', function() {
+        let busca = this.value.toLowerCase();
+        let linhas = document.querySelectorAll('#tabelaEstoque tbody tr');
+
+        linhas.forEach(linha => {
+            // Pega o texto de toda a linha para garantir que encontre o código ou o item
+            let conteudoLinha = linha.innerText.toLowerCase();
+            linha.style.display = conteudoLinha.includes(busca) ? "" : "none";
+        });
+    });
+</script>
+
+</body>
+</html>
